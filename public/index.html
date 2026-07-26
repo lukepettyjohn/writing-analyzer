@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Writing Pattern Analyzer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .input-section {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #eee;
+    }
+
+    .tab-button {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+      transition: all 0.2s;
+    }
+
+    .tab-button.active {
+      color: #4a90e2;
+      border-bottom-color: #4a90e2;
+    }
+
+    .tab-button:hover {
+      color: #333;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 250px;
+      padding: 15px;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      font-size: 15px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #4a90e2;
+      box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    }
+
+    .upload-zone {
+      border: 2px dashed #4a90e2;
+      border-radius: 6px;
+      padding: 40px 20px;
+      text-align: center;
+      background: #f9f9f9;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-zone.dragover {
+      background: #e8f0ff;
+      border-color: #357abd;
+    }
+
+    .upload-zone p {
+      color: #666;
+      margin: 0 0 10px 0;
+      font-size: 14px;
+    }
+
+    .upload-zone strong {
+      color: #4a90e2;
+      font-size: 15px;
+    }
+
+    .upload-zone input[type="file"] {
+      display: none;
+    }
+
+    .file-input-label {
+      display: inline-block;
+      padding: 8px 16px;
+      background: #4a90e2;
+      color: white;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .file-input-label:hover {
+      background: #357abd;
+    }
+
+    .button-group {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 15px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .analyze-btn {
+      background: #4a90e2;
+      color: white;
+      flex: 1;
+    }
+
+    .analyze-btn:hover {
+      background: #357abd;
+    }
+
+    .analyze-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .clear-btn {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .clear-btn:hover {
+      background: #e0e0e0;
+    }
+
+    .loading {
+      text-align: center;
+      color: #4a90e2;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+
+    .results {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .results.hidden {
+      display: none;
+    }
+
+    .result-header {
+      border-bottom: 2px solid #4a90e2;
+      padding-bottom: 15px;
+      margin-bottom: 25px;
+    }
+
+    .result-header h2 {
+      font-size: 20px;
+      color: #333;
+    }
+
+    .summary {
+      color: #555;
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-left: 4px solid #4a90e2;
+    }
+
+    .patterns-list {
+      margin-top: 25px;
+    }
+
+    .pattern-item {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      border-left: 4px solid #e74c3c;
+    }
+
+    .pattern-name {
+      font-weight: 600;
+      color: #e74c3c;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+
+    .pattern-excerpt {
+      background: white;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-style: italic;
+      margin: 12px 0;
+      border-left: 3px solid #e74c3c;
+      color: #333;
+    }
+
+    .pattern-label {
+      color: #666;
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: uppercase;
+      margin-top: 10px;
+    }
+
+    .pattern-text {
+      color: #555;
+      font-size: 14px;
+      margin-top: 5px;
+      line-height: 1.5;
+    }
+
+    .error {
+      background: #ffe0e0;
+      color: #c00;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 20px;
+    }
+
+    .feedback-section {
+      margin-top: 30px;
+      padding-top: 30px;
+      border-top: 2px solid #ddd;
+    }
+
+    .feedback-section h3 {
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 15px;
+    }
+
+    .feedback-section p {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .feedback-link {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #27ae60;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .feedback-link:hover {
+      background: #229954;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Student Writing Analyzer</h1>
+    <p class="subtitle">Identify reasoning patterns in student writing</p>
+
+    <div class="input-section">
+      <div class="tabs">
+        <button class="tab-button active" onclick="switchTab('paste')">Paste Text</button>
+        <button class="tab-button" onclick="switchTab('upload')">Upload File</button>
+      </div>
+
+      <div id="paste" class="tab-content active">
+        <textarea id="writing-input" placeholder="Paste student writing here..."></textarea>
+        <div class="button-group">
+          <button class="analyze-btn" onclick="analyzeWriting()">Analyze</button>
+          <button class="clear-btn" onclick="clearForm()">Clear</button>
+        </div>
+      </div>
+
+      <div id="upload" class="tab-content">
+        <div class="upload-zone" id="upload-zone">
+          <p>Drag and drop a Word document here</p>
+          <p><strong>or</strong></p>
+          <label class="file-input-label">
+            Choose File
+            <input type="file" id="file-input" accept=".docx" onchange="handleFileUpload(event)">
+          </label>
+        </div>
+        <div class="button-group" style="margin-top: 20px;">
+          <button class="clear-btn" onclick="clearFile()" style="flex: 1;">Clear File</button>
+        </div>
+      </div>
+
+      <div id="loading" class="loading" style="display: none;">Analyzing...</div>
+    </div>
+
+    <div id="results" class="results hidden">
+      <div class="result-header">
+        <h2>Analysis Results</h2>
+      </div>
+
+      <div id="summary" class="summary"></div>
+
+      <div id="patterns-container" class="patterns-list"></div>
+
+      <div id="error-container"></div>
+
+      <div class="feedback-section">
+        <h3>Help us improve</h3>
+        <p>How accurate was this analysis? Your feedback helps us get better.</p>
+        <a href="#" class="feedback-link" target="_blank">Share Feedback</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      document.getElementById('paste').classList.remove('active');
+      document.getElementById('upload').classList.remove('active');
+
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+
+      document.getElementById(tab).classList.add('active');
+      event.target.classList.add('active');
+
+      document.getElementById('results').classList.add('hidden');
+    }
+
+    const uploadZone = document.getElementById('upload-zone');
+
+    uploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+      uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        document.getElementById('file-input').files = files;
+        handleFileUpload({ target: { files } });
+      }
+    });
+
+    uploadZone.addEventListener('click', () => {
+      document.getElementById('file-input').click();
+    });
+
+    function handleFileUpload(event) {
+      const files = event.target.files;
+      if (files.length === 0) return;
+
+      const file = files[0];
+
+      if (!file.name.endsWith('.docx')) {
+        alert('Please upload a Word document (.docx)');
+        return;
+      }
+
+      uploadFile(file);
+    }
+
+    async function uploadFile(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('results').classList.add('hidden');
+
+      try {
+        const response = await fetch('/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          showError(data.error);
+        } else {
+          displayResults(data);
+        }
+      } catch (error) {
+        showError('Network error. Make sure you\'re connected.');
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    async function analyzeWriting() {
+      const text = document.getElementById('writing-input').value.trim();
+
+      if (!text) {
+        alert('Please paste some student writing first');
+        return;
+      }
+
+      if (text.length < 50) {
+        alert('Please provide at least 50 characters of writing');
+        return;
+      }
+
+      const analyzeBtn = document.querySelector('.analyze-btn');
+      analyzeBtn.disabled = true;
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('results').classList.add('hidden');
+
+      try {
+        const response = await fetch('/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text }),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          showError(data.error);
+        } else {
+          displayResults(data);
+        }
+      } catch (error) {
+        showError('Network error. Make sure you\'re connected.');
+      } finally {
+        analyzeBtn.disabled = false;
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    function displayResults(data) {
+      document.getElementById('summary').textContent = data.summary || '';
+
+      const patternsContainer = document.getElementById('patterns-container');
+      patternsContainer.innerHTML = '';
+
+      if (data.patterns && data.patterns.length > 0) {
+        data.patterns.forEach(pattern => {
+          const patternEl = document.createElement('div');
+          patternEl.className = 'pattern-item';
+          patternEl.innerHTML = `
+            <div class="pattern-name">${pattern.name}</div>
+            <div class="pattern-excerpt">"${pattern.excerpt}"</div>
+            <div class="pattern-label">Why this is a problem</div>
+            <div class="pattern-text">${pattern.why_its_a_problem}</div>
+            <div class="pattern-label">What the student might be thinking</div>
+            <div class="pattern-text">${pattern.likely_cause}</div>
+          `;
+          patternsContainer.appendChild(patternEl);
+        });
+      } else {
+        patternsContainer.innerHTML = '<p style="color: #666;">No patterns identified in this writing.</p>';
+      }
+
+      document.getElementById('results').classList.remove('hidden');
+    }
+
+    function showError(message) {
+      const errorContainer = document.getElementById('error-container');
+      errorContainer.innerHTML = `<div class="error">${message}</div>`;
+      document.getElementById('results').classList.remove('hidden');
+    }
+
+    function clearForm() {
+      document.getElementById('writing-input').value = '';
+      document.getElementById('results').classList.add('hidden');
+      document.getElementById('writing-input').focus();
+    }
+
+    function clearFile() {
+      document.getElementById('file-input').value = '';
+      document.getElementById('results').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
