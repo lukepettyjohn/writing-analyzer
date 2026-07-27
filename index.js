@@ -43,31 +43,42 @@ function buildClassCode(institution, year, teacherName) {
     .join('-');
 }
 
+function toTitleCase(str) {
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function normalizePatternKey(name) {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 function aggregatePatterns(rows) {
   const occurrences = {};
   const submissionsWithPattern = {};
+  const displayNames = {};
 
   rows.forEach(row => {
     const namesInRow = new Set();
     (row.analyses || []).forEach(analysis => {
       (analysis.patterns || []).forEach(pattern => {
         if (!pattern || !pattern.name) return;
-        occurrences[pattern.name] = (occurrences[pattern.name] || 0) + 1;
-        namesInRow.add(pattern.name);
+        const key = normalizePatternKey(pattern.name);
+        occurrences[key] = (occurrences[key] || 0) + 1;
+        namesInRow.add(key);
+        if (!displayNames[key]) displayNames[key] = toTitleCase(pattern.name.trim());
       });
     });
-    namesInRow.forEach(name => {
-      submissionsWithPattern[name] = (submissionsWithPattern[name] || 0) + 1;
+    namesInRow.forEach(key => {
+      submissionsWithPattern[key] = (submissionsWithPattern[key] || 0) + 1;
     });
   });
 
   const totalSubmissions = rows.length;
   const table = Object.keys(occurrences)
-    .map(name => ({
-      name,
-      occurrences: occurrences[name],
+    .map(key => ({
+      name: displayNames[key],
+      occurrences: occurrences[key],
       percentOfSubmissions: totalSubmissions
-        ? Math.round((submissionsWithPattern[name] / totalSubmissions) * 1000) / 10
+        ? Math.round((submissionsWithPattern[key] / totalSubmissions) * 1000) / 10
         : 0,
     }))
     .sort((a, b) => b.occurrences - a.occurrences);
@@ -107,26 +118,31 @@ function computePeerComparison(institutionRows, teacherRows, teacherName) {
   const normalizedTeacher = teacherName.trim().toUpperCase();
   const teacherPatternNames = new Set();
 
+  const teacherPatternDisplayNames = {};
+
   teacherRows.forEach(row => {
     (row.analyses || []).forEach(analysis => {
       (analysis.patterns || []).forEach(pattern => {
-        if (pattern && pattern.name) teacherPatternNames.add(pattern.name);
+        if (!pattern || !pattern.name) return;
+        const key = normalizePatternKey(pattern.name);
+        teacherPatternNames.add(key);
+        if (!teacherPatternDisplayNames[key]) teacherPatternDisplayNames[key] = toTitleCase(pattern.name.trim());
       });
     });
   });
 
   const results = [];
-  teacherPatternNames.forEach(name => {
+  teacherPatternNames.forEach(key => {
     const otherTeachers = new Set();
     institutionRows.forEach(row => {
       if ((row.teacher_name || '').trim().toUpperCase() === normalizedTeacher) return;
       const hasPattern = (row.analyses || []).some(analysis => (
-        (analysis.patterns || []).some(pattern => pattern && pattern.name === name)
+        (analysis.patterns || []).some(pattern => pattern && normalizePatternKey(pattern.name) === key)
       ));
       if (hasPattern) otherTeachers.add((row.teacher_name || '').trim().toUpperCase());
     });
     if (otherTeachers.size >= 3) {
-      results.push({ pattern: name, otherTeacherCount: otherTeachers.size });
+      results.push({ pattern: teacherPatternDisplayNames[key], otherTeacherCount: otherTeachers.size });
     }
   });
 
@@ -238,40 +254,40 @@ Analyze the following student writing for reasoning issues.
 
 Look for these patterns:
 
-UNSUPPORTED CLAIMS: Assertions made without evidence or reasoning
+Unsupported Claims: Assertions made without evidence or reasoning
 - Example: "Social media is bad for teenagers"
 - Problem: Reader doesn't know why you believe this
 
-LOGICAL JUMPS: Missing steps between premise and conclusion
+Logical Jumps: Missing steps between premise and conclusion
 - Example: "Climate change is real, therefore we should ban cars"
 - Problem: The connection isn't explained. Why cars specifically?
 
-UNEXAMINED ASSUMPTIONS: Things taken as true without questioning
+Unexamined Assumptions: Things taken as true without questioning
 - Example: "Everyone knows that X is true"
 - Problem: Not everyone knows this. You need to explain and support it
 
-CIRCULAR REASONING: Using the conclusion as evidence for itself
+Circular Reasoning: Using the conclusion as evidence for itself
 - Example: "Social media is addictive because it keeps people using it"
 - Problem: You're just restating, not explaining
 
-CHERRY-PICKING EVIDENCE: Only using facts that support your view
+Cherry-Picking Evidence: Only using facts that support your view
 - Example: Student cites 3 studies supporting their view, ignores 10 contradicting ones
 - Problem: Not considering counterarguments or full picture
 
-FALSE DILEMMA: Presenting only two options when more exist
+False Dilemma: Presenting only two options when more exist
 - Example: "Either we ban social media or society collapses"
 - Problem: Other options exist (regulation, moderation, education)
 
-APPEAL TO AUTHORITY: Using someone's status instead of reasoning
+Appeal to Authority: Using someone's status instead of reasoning
 - Example: "This must be true because [famous person] said so"
 - Problem: Authority doesn't replace logical reasoning
 
-OVERGENERALIZATION: Making broad claims from limited examples
+Overgeneralization: Making broad claims from limited examples
 - Example: "My friend got sick from that food, so that restaurant is unsafe"
 - Problem: One case doesn't prove a general rule
 
 For EACH pattern you find:
-1. Pattern name
+1. Pattern name — must be EXACTLY one of the eight names above, copied verbatim (same spelling, capitalization, and singular/plural form). Do not paraphrase or reformat it.
 2. The exact quote/excerpt from the text
 3. Why this is a reasoning problem
 4. What the student might be thinking (be kind—diagnose, don't judge)
