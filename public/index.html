@@ -18,7 +18,7 @@
     }
 
     .container {
-      max-width: 1000px;
+      max-width: 1200px;
       margin: 0 auto;
     }
 
@@ -220,7 +220,61 @@
     }
 
     .patterns-list {
+      margin-top: 0;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
       margin-top: 25px;
+    }
+
+    .column-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+
+    .essay-display {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #333;
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 15px;
+      max-height: 700px;
+      overflow-y: auto;
+    }
+
+    .essay-display .highlight {
+      background: #fff176;
+      padding: 1px 2px;
+      border-radius: 2px;
+    }
+
+    .feedback-column .patterns-list {
+      max-height: 700px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    @media (max-width: 768px) {
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .essay-display,
+      .feedback-column .patterns-list {
+        max-height: none;
+        overflow-y: visible;
+      }
     }
 
     .pattern-item {
@@ -348,9 +402,19 @@
 
       <div id="summary" class="summary"></div>
 
-      <div id="patterns-container" class="patterns-list"></div>
-
       <div id="error-container"></div>
+
+      <div class="results-grid">
+        <div class="essay-column">
+          <div class="column-title">Original Essay</div>
+          <div id="essay-display" class="essay-display"></div>
+        </div>
+
+        <div class="feedback-column">
+          <div class="column-title">Detailed Feedback</div>
+          <div id="patterns-container" class="patterns-list"></div>
+        </div>
+      </div>
 
       <div class="feedback-section">
         <h3>Help us improve</h3>
@@ -482,8 +546,69 @@
       }
     }
 
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function buildHighlightedEssay(text, patterns) {
+      const ranges = [];
+
+      (patterns || []).forEach(pattern => {
+        if (!pattern.excerpt) return;
+        const start = text.indexOf(pattern.excerpt);
+        if (start !== -1) {
+          ranges.push({ start, end: start + pattern.excerpt.length });
+        }
+      });
+
+      if (ranges.length === 0) {
+        return escapeHtml(text);
+      }
+
+      ranges.sort((a, b) => a.start - b.start);
+      const merged = [ranges[0]];
+      for (let i = 1; i < ranges.length; i++) {
+        const last = merged[merged.length - 1];
+        const current = ranges[i];
+        if (current.start <= last.end) {
+          last.end = Math.max(last.end, current.end);
+        } else {
+          merged.push(current);
+        }
+      }
+
+      let html = '';
+      let cursor = 0;
+      merged.forEach(range => {
+        html += escapeHtml(text.slice(cursor, range.start));
+        html += `<mark class="highlight">${escapeHtml(text.slice(range.start, range.end))}</mark>`;
+        cursor = range.end;
+      });
+      html += escapeHtml(text.slice(cursor));
+
+      return html;
+    }
+
+    function renderEssay(patterns) {
+      const essayDisplay = document.getElementById('essay-display');
+      const essayText = document.getElementById('writing-input').value;
+
+      if (essayText && essayText.trim()) {
+        essayDisplay.innerHTML = buildHighlightedEssay(essayText, patterns);
+      } else {
+        essayDisplay.innerHTML = '<p style="color: #999; font-style: italic;">Original essay text isn\'t available for uploaded files.</p>';
+      }
+    }
+
     function displayResults(data) {
       document.getElementById('summary').textContent = data.summary || '';
+
+      renderEssay(data.patterns);
 
       const patternsContainer = document.getElementById('patterns-container');
       patternsContainer.innerHTML = '';
