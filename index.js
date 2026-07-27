@@ -332,7 +332,15 @@ async function getAnalysisFromClaude(text) {
     }
 
     try {
-      return JSON.parse(clean);
+      const parsed = JSON.parse(clean);
+      if (Array.isArray(parsed.patterns)) {
+        parsed.patterns.forEach(pattern => {
+          if (pattern && pattern.name) {
+            pattern.name = toTitleCase(pattern.name.trim());
+          }
+        });
+      }
+      return parsed;
     } catch (parseError) {
       lastError = parseError;
       console.error(`JSON.parse failed on Claude response (attempt ${attempt}/${maxAttempts}):`, {
