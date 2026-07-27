@@ -1,11 +1,26 @@
+const path = require('path');
 const express = require('express');
 const { Anthropic } = require('@anthropic-ai/sdk');
+const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 const mammoth = require('mammoth');
 require('dotenv').config();
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+
+app.get('/config.js', (req, res) => {
+  res.type('application/javascript');
+  res.send(
+    `window.SUPABASE_URL = ${JSON.stringify(process.env.SUPABASE_URL || '')};\n` +
+    `window.SUPABASE_ANON_KEY = ${JSON.stringify(process.env.SUPABASE_ANON_KEY || '')};\n`
+  );
+});
+
+app.get('/vendor/supabase.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'node_modules/@supabase/supabase-js/dist/umd/supabase.js'));
+});
+
 app.use(express.static('public'));
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -13,6 +28,209 @@ const upload = multer({ storage: multer.memoryStorage() });
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
+if (!supabase) {
+  console.warn('Supabase not configured — submissions, feedback, and analytics will be unavailable.');
+}
+
+function buildClassCode(institution, year, teacherName) {
+  return [institution, year, teacherName]
+    .map(part => (part || '').trim().toUpperCase().replace(/\s+/g, '-'))
+    .join('-');
+}
+
+function aggregatePatterns(rows) {
+  const occurrences = {};
+  const submissionsWithPattern = {};
+
+  rows.forEach(row => {
+    const namesInRow = new Set();
+    (row.analyses || []).forEach(analysis => {
+      (analysis.patterns || []).forEach(pattern => {
+        if (!pattern || !pattern.name) return;
+        occurrences[pattern.name] = (occurrences[pattern.name] || 0) + 1;
+        namesInRow.add(pattern.name);
+      });
+    });
+    namesInRow.forEach(name => {
+      submissionsWithPattern[name] = (submissionsWithPattern[name] || 0) + 1;
+    });
+  });
+
+  const totalSubmissions = rows.length;
+  const table = Object.keys(occurrences)
+    .map(name => ({
+      name,
+      occurrences: occurrences[name],
+      percentOfSubmissions: totalSubmissions
+        ? Math.round((submissionsWithPattern[name] / totalSubmissions) * 1000) / 10
+        : 0,
+    }))
+    .sort((a, b) => b.occurrences - a.occurrences);
+
+  return { totalSubmissions, table };
+}
+
+function computeTrend(rows) {
+  if (rows.length < 4) return null;
+
+  const sorted = [...rows].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const mid = Math.floor(sorted.length / 2);
+  const earlier = sorted.slice(0, mid);
+  const later = sorted.slice(mid);
+
+  const avgPatterns = subset => {
+    if (subset.length === 0) return 0;
+    const total = subset.reduce((sum, row) => (
+      sum + (row.analyses || []).reduce((s, a) => s + (a.patterns || []).length, 0)
+    ), 0);
+    return total / subset.length;
+  };
+
+  const earlierAvg = avgPatterns(earlier);
+  const laterAvg = avgPatterns(later);
+  const percentChange = earlierAvg === 0 ? null : Math.round(((laterAvg - earlierAvg) / earlierAvg) * 1000) / 10;
+
+  return {
+    earlierAvgPatterns: Math.round(earlierAvg * 10) / 10,
+    laterAvgPatterns: Math.round(laterAvg * 10) / 10,
+    percentChange,
+    direction: laterAvg < earlierAvg ? 'improving' : laterAvg > earlierAvg ? 'worsening' : 'stable',
+  };
+}
+
+function computePeerComparison(institutionRows, teacherRows, teacherName) {
+  const normalizedTeacher = teacherName.trim().toUpperCase();
+  const teacherPatternNames = new Set();
+
+  teacherRows.forEach(row => {
+    (row.analyses || []).forEach(analysis => {
+      (analysis.patterns || []).forEach(pattern => {
+        if (pattern && pattern.name) teacherPatternNames.add(pattern.name);
+      });
+    });
+  });
+
+  const results = [];
+  teacherPatternNames.forEach(name => {
+    const otherTeachers = new Set();
+    institutionRows.forEach(row => {
+      if ((row.teacher_name || '').trim().toUpperCase() === normalizedTeacher) return;
+      const hasPattern = (row.analyses || []).some(analysis => (
+        (analysis.patterns || []).some(pattern => pattern && pattern.name === name)
+      ));
+      if (hasPattern) otherTeachers.add((row.teacher_name || '').trim().toUpperCase());
+    });
+    if (otherTeachers.size >= 3) {
+      results.push({ pattern: name, otherTeacherCount: otherTeachers.size });
+    }
+  });
+
+  return results.sort((a, b) => b.otherTeacherCount - a.otherTeacherCount);
+}
+
+async function getAuthedEmail(req) {
+  if (!supabase) return null;
+
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return null;
+
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) return null;
+    return data.user.email || null;
+  } catch (error) {
+    console.error('Failed to verify auth token:', error);
+    return null;
+  }
+}
+
+function teacherOwnerKey(institution, teacherName) {
+  return {
+    institution: (institution || '').trim().toLowerCase(),
+    teacher_name: (teacherName || '').trim().toLowerCase(),
+  };
+}
+
+async function getTeacherClaim(institution, teacherName) {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('teacher_owners')
+    .select('email')
+    .match(teacherOwnerKey(institution, teacherName))
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to look up teacher claim:', error);
+    return null;
+  }
+
+  return data ? data.email : null;
+}
+
+async function claimTeacherIfNeeded(institution, teacherName, email) {
+  if (!supabase || !institution || !teacherName || !email) return;
+
+  const { error } = await supabase
+    .from('teacher_owners')
+    .upsert(
+      { ...teacherOwnerKey(institution, teacherName), email: email.toLowerCase() },
+      { onConflict: 'institution,teacher_name', ignoreDuplicates: true }
+    );
+
+  if (error) {
+    console.error('Failed to claim teacher identity:', error);
+  }
+}
+
+async function saveSubmission({ text, institution, year, teacherName, analysis, teacherEmail }) {
+  if (!supabase) return null;
+  if (!institution || !year || !teacherName) return null;
+
+  const now = new Date().toISOString();
+
+  const { data: submission, error: submissionError } = await supabase
+    .from('submissions')
+    .insert({
+      essay_text: text,
+      institution,
+      year,
+      teacher_name: teacherName,
+      teacher_email: teacherEmail || null,
+      timestamp: now,
+    })
+    .select()
+    .single();
+
+  if (submissionError) {
+    console.error('Failed to save submission:', submissionError);
+    return null;
+  }
+
+  const { error: analysisError } = await supabase
+    .from('analyses')
+    .insert({
+      submission_id: submission.id,
+      patterns: analysis.patterns || [],
+      summary: analysis.summary || null,
+    });
+
+  if (analysisError) {
+    console.error('Failed to save analysis:', analysisError);
+  }
+
+  if (teacherEmail) {
+    await claimTeacherIfNeeded(institution, teacherName, teacherEmail);
+  }
+
+  return submission;
+}
 
 const systemPrompt = `You are an expert writing teacher analyzing student reasoning patterns.
 
@@ -72,6 +290,48 @@ Output ONLY valid JSON, no other text. Format:
   "summary": "1-2 sentence summary of main reasoning issues"
 }`;
 
+async function getAnalysisFromClaude(text) {
+  const maxAttempts = 2;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const message = await client.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: `Analyze this student writing:\n\n${text}`
+        }
+      ],
+    });
+
+    const textBlock = message.content.find(block => block.type === 'text');
+    const responseText = textBlock ? textBlock.text : '';
+
+    let clean = responseText.trim();
+    if (clean.startsWith('```')) {
+      clean = clean.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    }
+
+    try {
+      return JSON.parse(clean);
+    } catch (parseError) {
+      lastError = parseError;
+      console.error(`JSON.parse failed on Claude response (attempt ${attempt}/${maxAttempts}):`, {
+        stopReason: message.stop_reason,
+        contentBlockTypes: message.content.map(block => block.type),
+        length: responseText.length,
+        preview: responseText.slice(0, 300),
+        tail: responseText.slice(-300),
+      });
+    }
+  }
+
+  throw lastError;
+}
+
 async function extractTextFromFile(file) {
   try {
     if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.originalname.endsWith('.docx')) {
@@ -88,7 +348,7 @@ async function extractTextFromFile(file) {
 
 app.post('/analyze', async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, institution, year, teacherName } = req.body;
 
     if (!text || text.trim().length < 50) {
       return res.json({
@@ -96,27 +356,15 @@ app.post('/analyze', async (req, res) => {
       });
     }
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1500,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: `Analyze this student writing:\n\n${text}`
-        }
-      ],
-    });
+    const analysis = await getAnalysisFromClaude(text);
 
-    const responseText = message.content[0].type === 'text'
-      ? message.content[0].text
-      : '';
-
-    let clean = responseText.trim();
-    if (clean.startsWith('```')) {
-      clean = clean.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    const teacherEmail = await getAuthedEmail(req);
+    const submission = await saveSubmission({ text, institution, year, teacherName, analysis, teacherEmail });
+    if (submission) {
+      analysis.submissionId = submission.id;
+      analysis.classCode = buildClassCode(institution, year, teacherName);
     }
-    const analysis = JSON.parse(clean);
+
     res.json(analysis);
 
   } catch (error) {
@@ -133,6 +381,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return res.json({ error: 'No file uploaded' });
     }
 
+    const { institution, year, teacherName } = req.body;
+
     const text = await extractTextFromFile(req.file);
 
     if (!text) {
@@ -145,27 +395,15 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       });
     }
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1500,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: `Analyze this student writing:\n\n${text}`
-        }
-      ],
-    });
+    const analysis = await getAnalysisFromClaude(text);
 
-    const responseText = message.content[0].type === 'text'
-      ? message.content[0].text
-      : '';
-
-    let clean = responseText.trim();
-    if (clean.startsWith('```')) {
-      clean = clean.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    const teacherEmail = await getAuthedEmail(req);
+    const submission = await saveSubmission({ text, institution, year, teacherName, analysis, teacherEmail });
+    if (submission) {
+      analysis.submissionId = submission.id;
+      analysis.classCode = buildClassCode(institution, year, teacherName);
     }
-    const analysis = JSON.parse(clean);
+
     res.json(analysis);
 
   } catch (error) {
@@ -173,6 +411,112 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     res.json({
       error: 'Failed to process file. Try a different file or paste text instead.'
     });
+  }
+});
+
+app.post('/feedback', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({ error: 'Feedback storage is not configured yet.' });
+    }
+
+    const { submissionId, accurate, useful, comments, suggestions } = req.body;
+
+    if (!submissionId) {
+      return res.json({ error: 'Missing submissionId' });
+    }
+
+    const { error } = await supabase
+      .from('feedback')
+      .insert({
+        submission_id: submissionId,
+        accurate: accurate === null || accurate === undefined ? null : Boolean(accurate),
+        useful: useful === null || useful === undefined ? null : Boolean(useful),
+        comments: comments || null,
+        suggestions: suggestions || null,
+      });
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Feedback error:', error);
+    res.json({ error: 'Failed to save feedback.' });
+  }
+});
+
+app.get('/analytics', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({ error: 'Analytics storage is not configured yet.' });
+    }
+
+    const institution = (req.query.institution || '').trim();
+    const year = (req.query.year || '').trim();
+    const teacherName = (req.query.teacherName || '').trim();
+
+    if (!institution) {
+      return res.json({ error: 'Institution is required.' });
+    }
+
+    const { data, error } = await supabase
+      .from('submissions')
+      .select('id, institution, year, teacher_name, created_at, analyses(patterns, summary)')
+      .ilike('institution', institution);
+
+    if (error) throw error;
+
+    const institutionRows = data || [];
+    const yearRows = year
+      ? institutionRows.filter(row => (row.year || '').trim().toUpperCase() === year.toUpperCase())
+      : [];
+    const teacherRows = (year && teacherName)
+      ? yearRows.filter(row => (row.teacher_name || '').trim().toUpperCase() === teacherName.toUpperCase())
+      : [];
+
+    const response = {
+      institution: { name: institution, ...aggregatePatterns(institutionRows) },
+    };
+
+    if (year) {
+      response.year = { institution, year, ...aggregatePatterns(yearRows) };
+    }
+
+    if (year && teacherName) {
+      const claimEmail = await getTeacherClaim(institution, teacherName);
+      const authedEmail = claimEmail ? await getAuthedEmail(req) : null;
+      const isOwner = !claimEmail || (authedEmail && authedEmail.toLowerCase() === claimEmail.toLowerCase());
+
+      if (!isOwner) {
+        response.teacherLocked = true;
+      } else {
+        response.teacherLocked = false;
+
+        const teacherAgg = aggregatePatterns(teacherRows);
+        const totalPatternCount = teacherRows.reduce((sum, row) => (
+          sum + (row.analyses || []).reduce((s, a) => s + (a.patterns || []).length, 0)
+        ), 0);
+
+        response.teacher = {
+          institution,
+          year,
+          teacherName,
+          classCode: buildClassCode(institution, year, teacherName),
+          ...teacherAgg,
+          avgPatternsPerSubmission: teacherAgg.totalSubmissions
+            ? Math.round((totalPatternCount / teacherAgg.totalSubmissions) * 10) / 10
+            : 0,
+          trend: computeTrend(teacherRows),
+        };
+
+        response.peerComparison = computePeerComparison(institutionRows, teacherRows, teacherName);
+      }
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.json({ error: 'Failed to load analytics.' });
   }
 });
 

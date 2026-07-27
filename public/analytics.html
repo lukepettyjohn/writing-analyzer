@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analytics — Writing Pattern Analyzer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Georgia', 'Garamond', serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .nav-link {
+      color: #4a90e2;
+      font-size: 14px;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      text-decoration: underline;
+    }
+
+    .auth-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .auth-box button {
+      padding: 6px 14px;
+      font-size: 13px;
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .auth-box button:hover {
+      background: #e0e0e0;
+    }
+
+    .auth-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .auth-form.hidden {
+      display: none;
+    }
+
+    .auth-form input {
+      padding: 6px 10px;
+      font-size: 13px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Georgia', 'Garamond', serif;
+    }
+
+    .auth-form button {
+      background: #4a90e2;
+      color: white;
+    }
+
+    .auth-form button:hover {
+      background: #357abd;
+    }
+
+    .auth-message {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .lookup-fields {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 600px) {
+      .lookup-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: 'Georgia', 'Garamond', serif;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .field input:focus {
+      outline: none;
+      border-color: #4a90e2;
+      box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    }
+
+    .field-hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 15px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #4a90e2;
+      color: white;
+    }
+
+    button:hover {
+      background: #357abd;
+    }
+
+    .error {
+      background: #ffe0e0;
+      color: #c00;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 15px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .level-section {
+      margin-bottom: 25px;
+    }
+
+    .level-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .level-title {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .level-description {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+    }
+
+    th {
+      color: #666;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    td {
+      color: #333;
+    }
+
+    .empty-note {
+      color: #999;
+      font-size: 14px;
+      font-style: italic;
+      padding: 10px 0;
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 30px;
+      flex-wrap: wrap;
+      margin: 15px 0 20px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 6px;
+    }
+
+    .stat {
+      min-width: 140px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      color: #333;
+      font-weight: 600;
+    }
+
+    .peer-item {
+      padding: 12px 15px;
+      background: #f0f7ff;
+      border-left: 4px solid #4a90e2;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-bar">
+      <div>
+        <h1>Teacher Analytics</h1>
+        <p class="subtitle">Aggregate reasoning-pattern trends across institution, year, and teacher</p>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+        <a href="index.html" class="nav-link">← Back to Analyzer</a>
+        <div class="auth-box" id="auth-box">
+          <span id="auth-status">Not signed in</span>
+          <button type="button" id="auth-toggle-btn" onclick="toggleAuthForm()">Sign in</button>
+        </div>
+        <form id="auth-form" class="auth-form hidden" onsubmit="sendMagicLink(event)">
+          <input type="email" id="auth-email" placeholder="you@school.edu" required>
+          <button type="submit">Send magic link</button>
+        </form>
+        <div id="auth-message" class="auth-message"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lookup-fields">
+        <div class="field">
+          <label for="institution-input">Institution</label>
+          <input type="text" id="institution-input" placeholder="e.g. Harvard">
+        </div>
+        <div class="field">
+          <label for="year-input">Year</label>
+          <input type="text" id="year-input" placeholder="e.g. 2024">
+          <div class="field-hint">Optional — leave blank for an institution-wide view</div>
+        </div>
+        <div class="field">
+          <label for="teacher-input">Teacher name</label>
+          <input type="text" id="teacher-input" placeholder="e.g. Smith">
+          <div class="field-hint">Requires Year — leave blank to stop at the year level</div>
+        </div>
+      </div>
+      <button onclick="loadAnalytics()">View Dashboard</button>
+      <div id="lookup-error"></div>
+    </div>
+
+    <div id="results" class="hidden">
+      <div class="card level-section" id="institution-section"></div>
+      <div class="card level-section hidden" id="year-section"></div>
+      <div class="card level-section hidden" id="teacher-section"></div>
+      <div class="card level-section hidden" id="peer-section"></div>
+    </div>
+  </div>
+
+  <script src="/vendor/supabase.js"></script>
+  <script src="/config.js"></script>
+  <script>
+    const sb = (window.SUPABASE_URL && window.SUPABASE_ANON_KEY)
+      ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+      : null;
+
+    let currentSession = null;
+
+    function checkAuthRedirectError() {
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const queryParams = new URLSearchParams(window.location.search);
+      const errorDescription = hashParams.get('error_description') || queryParams.get('error_description');
+      const errorCode = hashParams.get('error_code') || queryParams.get('error_code');
+
+      if (errorDescription) {
+        document.getElementById('auth-message').textContent =
+          `Sign-in link failed: ${decodeURIComponent(errorDescription).replace(/\+/g, ' ')}${errorCode ? ' (' + errorCode + ')' : ''}`;
+      }
+    }
+
+    async function initAuth() {
+      if (!sb) return;
+
+      checkAuthRedirectError();
+
+      const { data } = await sb.auth.getSession();
+      currentSession = data.session;
+      renderAuthState();
+
+      sb.auth.onAuthStateChange((_event, session) => {
+        currentSession = session;
+        renderAuthState();
+      });
+    }
+
+    function renderAuthState() {
+      const statusEl = document.getElementById('auth-status');
+      const toggleBtn = document.getElementById('auth-toggle-btn');
+      const form = document.getElementById('auth-form');
+
+      if (currentSession && currentSession.user) {
+        statusEl.textContent = `Signed in as ${currentSession.user.email}`;
+        toggleBtn.textContent = 'Sign out';
+        toggleBtn.onclick = signOut;
+        form.classList.add('hidden');
+      } else {
+        statusEl.textContent = 'Not signed in';
+        toggleBtn.textContent = 'Sign in';
+        toggleBtn.onclick = toggleAuthForm;
+      }
+    }
+
+    function toggleAuthForm() {
+      document.getElementById('auth-form').classList.toggle('hidden');
+    }
+
+    async function sendMagicLink(event) {
+      event.preventDefault();
+      const messageEl = document.getElementById('auth-message');
+
+      if (!sb) {
+        messageEl.textContent = 'Sign-in isn\'t configured yet.';
+        return;
+      }
+
+      const email = document.getElementById('auth-email').value.trim();
+      messageEl.textContent = 'Sending...';
+
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.href },
+      });
+
+      messageEl.textContent = error ? error.message : 'Check your email for a sign-in link.';
+    }
+
+    function signOut() {
+      if (sb) sb.auth.signOut();
+    }
+
+    async function getAuthHeaders() {
+      if (!sb) return {};
+      const { data } = await sb.auth.getSession();
+      return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+    }
+
+    initAuth();
+
+    function renderTable(rows) {
+      if (!rows || rows.length === 0) {
+        return '<p class="empty-note">No pattern data yet for this scope.</p>';
+      }
+
+      const body = rows.map(row => `
+        <tr>
+          <td>${row.name}</td>
+          <td>${row.occurrences}</td>
+          <td>${row.percentOfSubmissions}%</td>
+        </tr>
+      `).join('');
+
+      return `
+        <table>
+          <thead>
+            <tr><th>Pattern</th><th># of occurrences</th><th>% of submissions</th></tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      `;
+    }
+
+    function renderTrend(trend) {
+      if (!trend) {
+        return '<div class="stat"><div class="stat-label">Improvement trend</div><div class="stat-value">Not enough data yet</div></div>';
+      }
+
+      const arrow = trend.direction === 'improving' ? '↓ fewer patterns' : trend.direction === 'worsening' ? '↑ more patterns' : '→ stable';
+      const change = trend.percentChange === null ? '' : ` (${trend.percentChange > 0 ? '+' : ''}${trend.percentChange}%)`;
+
+      return `
+        <div class="stat">
+          <div class="stat-label">Improvement trend</div>
+          <div class="stat-value">${arrow}${change}</div>
+        </div>
+      `;
+    }
+
+    async function loadAnalytics() {
+      const institution = document.getElementById('institution-input').value.trim();
+      const year = document.getElementById('year-input').value.trim();
+      const teacherName = document.getElementById('teacher-input').value.trim();
+
+      const errorEl = document.getElementById('lookup-error');
+      errorEl.innerHTML = '';
+
+      if (!institution) {
+        errorEl.innerHTML = '<div class="error">Institution is required.</div>';
+        return;
+      }
+
+      if (teacherName && !year) {
+        errorEl.innerHTML = '<div class="error">Enter a Year to view teacher-level analytics.</div>';
+        return;
+      }
+
+      const params = new URLSearchParams({ institution });
+      if (year) params.set('year', year);
+      if (teacherName) params.set('teacherName', teacherName);
+
+      let data;
+      try {
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(`/analytics?${params.toString()}`, { headers: authHeaders });
+        data = await response.json();
+      } catch (error) {
+        errorEl.innerHTML = '<div class="error">Network error. Make sure you\'re connected.</div>';
+        return;
+      }
+
+      if (data.error) {
+        errorEl.innerHTML = `<div class="error">${data.error}</div>`;
+        document.getElementById('results').classList.add('hidden');
+        return;
+      }
+
+      document.getElementById('results').classList.remove('hidden');
+
+      const institutionSection = document.getElementById('institution-section');
+      institutionSection.innerHTML = `
+        <div class="level-title">${data.institution.name}</div>
+        <div class="level-description">Across all submissions from ${data.institution.name} (all years, all teachers) — ${data.institution.totalSubmissions} submission(s)</div>
+        ${renderTable(data.institution.table)}
+      `;
+
+      const yearSection = document.getElementById('year-section');
+      if (data.year) {
+        yearSection.classList.remove('hidden');
+        yearSection.innerHTML = `
+          <div class="level-title">${data.year.institution} ${data.year.year}</div>
+          <div class="level-description">${data.year.institution} submissions from ${data.year.year} — ${data.year.totalSubmissions} submission(s)</div>
+          ${renderTable(data.year.table)}
+        `;
+      } else {
+        yearSection.classList.add('hidden');
+        yearSection.innerHTML = '';
+      }
+
+      const teacherSection = document.getElementById('teacher-section');
+      const peerSection = document.getElementById('peer-section');
+
+      if (data.teacherLocked) {
+        const classCode = [institution, year, teacherName].map(p => p.toUpperCase().replace(/\s+/g, '-')).join('-');
+        teacherSection.classList.remove('hidden');
+        teacherSection.innerHTML = `
+          <div class="level-title">This teacher dashboard is protected</div>
+          <p class="empty-note">${classCode} has been claimed by its teacher. Sign in with that teacher's email above to view it.</p>
+        `;
+        peerSection.classList.add('hidden');
+        peerSection.innerHTML = '';
+      } else if (data.teacher) {
+        teacherSection.classList.remove('hidden');
+        teacherSection.innerHTML = `
+          <div class="level-title">Your submissions (${data.teacher.classCode})</div>
+          <div class="level-description">${data.teacher.institution} ${data.teacher.year} — ${data.teacher.teacherName}</div>
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat-label">Total submissions</div>
+              <div class="stat-value">${data.teacher.totalSubmissions}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Avg patterns / submission</div>
+              <div class="stat-value">${data.teacher.avgPatternsPerSubmission}</div>
+            </div>
+            ${renderTrend(data.teacher.trend)}
+          </div>
+          ${renderTable(data.teacher.table)}
+        `;
+      } else {
+        teacherSection.classList.add('hidden');
+        teacherSection.innerHTML = '';
+      }
+
+      if (!data.teacherLocked && data.peerComparison) {
+        peerSection.classList.remove('hidden');
+        if (data.peerComparison.length === 0) {
+          peerSection.innerHTML = `
+            <div class="level-title">Anonymous peer comparison</div>
+            <p class="empty-note">Not enough other teachers from ${institution} yet (need at least 3) to show an anonymous comparison.</p>
+          `;
+        } else {
+          const items = data.peerComparison.map(item => `
+            <div class="peer-item">${item.otherTeacherCount} other teachers from ${institution} also struggled with <strong>${item.pattern}</strong></div>
+          `).join('');
+          peerSection.innerHTML = `
+            <div class="level-title">Anonymous peer comparison</div>
+            <div class="level-description">Based on patterns found in your own submissions, compared anonymously against other teachers at your institution.</div>
+            ${items}
+          `;
+        }
+      } else {
+        peerSection.classList.add('hidden');
+        peerSection.innerHTML = '';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -357,14 +357,227 @@
     .feedback-link:hover {
       background: #229954;
     }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .nav-link {
+      color: #4a90e2;
+      font-size: 14px;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      text-decoration: underline;
+    }
+
+    .auth-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .auth-box button {
+      padding: 6px 14px;
+      font-size: 13px;
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .auth-box button:hover {
+      background: #e0e0e0;
+    }
+
+    .auth-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .auth-form.hidden {
+      display: none;
+    }
+
+    .auth-form input {
+      padding: 6px 10px;
+      font-size: 13px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Georgia', 'Garamond', serif;
+    }
+
+    .auth-form button {
+      background: #4a90e2;
+      color: white;
+    }
+
+    .auth-form button:hover {
+      background: #357abd;
+    }
+
+    .auth-message {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .submission-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .meta-field label {
+      display: block;
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .meta-field input {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: 'Georgia', 'Garamond', serif;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .meta-field input:focus {
+      outline: none;
+      border-color: #4a90e2;
+      box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    }
+
+    .class-code-display {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 20px;
+      padding: 10px 12px;
+      background: #f9f9f9;
+      border-radius: 6px;
+    }
+
+    .class-code-display strong {
+      color: #333;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    @media (max-width: 600px) {
+      .submission-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .feedback-question {
+      margin-bottom: 18px;
+    }
+
+    .feedback-question > label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 20px;
+    }
+
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      color: #555;
+      cursor: pointer;
+    }
+
+    .feedback-question textarea {
+      width: 100%;
+      min-height: 70px;
+      padding: 10px 12px;
+      font-family: 'Georgia', 'Garamond', serif;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      resize: vertical;
+    }
+
+    .feedback-submit-btn {
+      background: #27ae60;
+      color: white;
+    }
+
+    .feedback-submit-btn:hover {
+      background: #229954;
+    }
+
+    .feedback-status {
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    .feedback-status.success {
+      color: #27ae60;
+    }
+
+    .feedback-status.error {
+      color: #c00;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Student Writing Analyzer</h1>
-    <p class="subtitle">Identify reasoning patterns in student writing</p>
+    <div class="top-bar">
+      <div>
+        <h1>Student Writing Analyzer</h1>
+        <p class="subtitle">Identify reasoning patterns in student writing</p>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+        <a href="analytics.html" class="nav-link">View Analytics →</a>
+        <div class="auth-box" id="auth-box">
+          <span id="auth-status">Not signed in</span>
+          <button type="button" id="auth-toggle-btn" onclick="toggleAuthForm()">Sign in</button>
+        </div>
+        <form id="auth-form" class="auth-form hidden" onsubmit="sendMagicLink(event)">
+          <input type="email" id="auth-email" placeholder="you@school.edu" required>
+          <button type="submit">Send magic link</button>
+        </form>
+        <div id="auth-message" class="auth-message"></div>
+      </div>
+    </div>
 
     <div class="input-section">
+      <div class="submission-meta">
+        <div class="meta-field">
+          <label for="institution-input">Institution</label>
+          <input type="text" id="institution-input" placeholder="e.g. Harvard" oninput="updateClassCode()">
+        </div>
+        <div class="meta-field">
+          <label for="year-input">Year</label>
+          <input type="text" id="year-input" placeholder="e.g. 2024" oninput="updateClassCode()">
+        </div>
+        <div class="meta-field">
+          <label for="teacher-input">Teacher name</label>
+          <input type="text" id="teacher-input" placeholder="e.g. Smith" oninput="updateClassCode()">
+        </div>
+      </div>
+      <div class="class-code-display">Class code: <strong id="class-code">—</strong></div>
+
       <div class="tabs">
         <button class="tab-button active" onclick="switchTab('paste')">Paste Text</button>
         <button class="tab-button" onclick="switchTab('upload')">Upload File</button>
@@ -419,12 +632,148 @@
       <div class="feedback-section">
         <h3>Help us improve</h3>
         <p>How accurate was this analysis? Your feedback helps us get better.</p>
-        <a href="#" class="feedback-link" target="_blank">Share Feedback</a>
+        <form id="feedback-form" onsubmit="submitFeedback(event)">
+          <div class="feedback-question">
+            <label>Was this diagnosis accurate?</label>
+            <div class="radio-group">
+              <label><input type="radio" name="accurate" value="yes"> Yes</label>
+              <label><input type="radio" name="accurate" value="no"> No</label>
+            </div>
+          </div>
+          <div class="feedback-question">
+            <label>Would you use this in your class?</label>
+            <div class="radio-group">
+              <label><input type="radio" name="useful" value="yes"> Yes</label>
+              <label><input type="radio" name="useful" value="no"> No</label>
+            </div>
+          </div>
+          <div class="feedback-question">
+            <label for="feedback-comments">What would make it more useful?</label>
+            <textarea id="feedback-comments"></textarea>
+          </div>
+          <div class="feedback-question">
+            <label for="feedback-suggestions">Did we miss any patterns?</label>
+            <textarea id="feedback-suggestions"></textarea>
+          </div>
+          <button type="submit" class="feedback-submit-btn">Submit Feedback</button>
+        </form>
+        <div id="feedback-status" class="feedback-status"></div>
       </div>
     </div>
   </div>
 
+  <script src="/vendor/supabase.js"></script>
+  <script src="/config.js"></script>
   <script>
+    const sb = (window.SUPABASE_URL && window.SUPABASE_ANON_KEY)
+      ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+      : null;
+
+    let currentSession = null;
+
+    function checkAuthRedirectError() {
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const queryParams = new URLSearchParams(window.location.search);
+      const errorDescription = hashParams.get('error_description') || queryParams.get('error_description');
+      const errorCode = hashParams.get('error_code') || queryParams.get('error_code');
+
+      if (errorDescription) {
+        document.getElementById('auth-message').textContent =
+          `Sign-in link failed: ${decodeURIComponent(errorDescription).replace(/\+/g, ' ')}${errorCode ? ' (' + errorCode + ')' : ''}`;
+      }
+    }
+
+    async function initAuth() {
+      if (!sb) return;
+
+      checkAuthRedirectError();
+
+      const { data } = await sb.auth.getSession();
+      currentSession = data.session;
+      renderAuthState();
+
+      sb.auth.onAuthStateChange((_event, session) => {
+        currentSession = session;
+        renderAuthState();
+      });
+    }
+
+    function renderAuthState() {
+      const statusEl = document.getElementById('auth-status');
+      const toggleBtn = document.getElementById('auth-toggle-btn');
+      const form = document.getElementById('auth-form');
+
+      if (currentSession && currentSession.user) {
+        statusEl.textContent = `Signed in as ${currentSession.user.email}`;
+        toggleBtn.textContent = 'Sign out';
+        toggleBtn.onclick = signOut;
+        form.classList.add('hidden');
+      } else {
+        statusEl.textContent = 'Not signed in';
+        toggleBtn.textContent = 'Sign in';
+        toggleBtn.onclick = toggleAuthForm;
+      }
+    }
+
+    function toggleAuthForm() {
+      document.getElementById('auth-form').classList.toggle('hidden');
+    }
+
+    async function sendMagicLink(event) {
+      event.preventDefault();
+      const messageEl = document.getElementById('auth-message');
+
+      if (!sb) {
+        messageEl.textContent = 'Sign-in isn\'t configured yet.';
+        return;
+      }
+
+      const email = document.getElementById('auth-email').value.trim();
+      messageEl.textContent = 'Sending...';
+
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.href },
+      });
+
+      messageEl.textContent = error ? error.message : 'Check your email for a sign-in link.';
+    }
+
+    function signOut() {
+      if (sb) sb.auth.signOut();
+    }
+
+    async function getAuthHeaders() {
+      if (!sb) return {};
+      const { data } = await sb.auth.getSession();
+      return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+    }
+
+    initAuth();
+
+    let currentSubmissionId = null;
+
+    function getSubmissionMeta() {
+      return {
+        institution: document.getElementById('institution-input').value.trim(),
+        year: document.getElementById('year-input').value.trim(),
+        teacherName: document.getElementById('teacher-input').value.trim(),
+      };
+    }
+
+    function updateClassCode() {
+      const { institution, year, teacherName } = getSubmissionMeta();
+      const codeEl = document.getElementById('class-code');
+
+      if (institution && year && teacherName) {
+        codeEl.textContent = [institution, year, teacherName]
+          .map(part => part.toUpperCase().replace(/\s+/g, '-'))
+          .join('-');
+      } else {
+        codeEl.textContent = '—';
+      }
+    }
+
     function switchTab(tab) {
       document.getElementById('paste').classList.remove('active');
       document.getElementById('upload').classList.remove('active');
@@ -481,12 +830,19 @@
       const formData = new FormData();
       formData.append('file', file);
 
+      const meta = getSubmissionMeta();
+      formData.append('institution', meta.institution);
+      formData.append('year', meta.year);
+      formData.append('teacherName', meta.teacherName);
+
       document.getElementById('loading').style.display = 'block';
       document.getElementById('results').classList.add('hidden');
 
       try {
+        const authHeaders = await getAuthHeaders();
         const response = await fetch('/upload', {
           method: 'POST',
+          headers: authHeaders,
           body: formData,
         });
 
@@ -523,12 +879,15 @@
       document.getElementById('results').classList.add('hidden');
 
       try {
+        const meta = getSubmissionMeta();
+        const authHeaders = await getAuthHeaders();
         const response = await fetch('/analyze', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...authHeaders,
           },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, ...meta }),
         });
 
         const data = await response.json();
@@ -605,7 +964,17 @@
       }
     }
 
+    function resetFeedbackForm() {
+      const form = document.getElementById('feedback-form');
+      form.reset();
+      document.getElementById('feedback-status').textContent = '';
+      document.getElementById('feedback-status').className = 'feedback-status';
+    }
+
     function displayResults(data) {
+      currentSubmissionId = data.submissionId || null;
+      resetFeedbackForm();
+
       document.getElementById('summary').textContent = data.summary || '';
 
       renderEssay(data.patterns);
@@ -640,15 +1009,61 @@
       document.getElementById('results').classList.remove('hidden');
     }
 
+    async function submitFeedback(event) {
+      event.preventDefault();
+
+      const statusEl = document.getElementById('feedback-status');
+
+      if (!currentSubmissionId) {
+        statusEl.textContent = 'Feedback isn\'t available for this analysis. Make sure Institution, Year, and Teacher name were filled in before analyzing, and that the database is configured.';
+        statusEl.className = 'feedback-status error';
+        return;
+      }
+
+      const accurateInput = document.querySelector('input[name="accurate"]:checked');
+      const usefulInput = document.querySelector('input[name="useful"]:checked');
+
+      const payload = {
+        submissionId: currentSubmissionId,
+        accurate: accurateInput ? accurateInput.value === 'yes' : null,
+        useful: usefulInput ? usefulInput.value === 'yes' : null,
+        comments: document.getElementById('feedback-comments').value.trim(),
+        suggestions: document.getElementById('feedback-suggestions').value.trim(),
+      };
+
+      try {
+        const response = await fetch('/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          statusEl.textContent = data.error;
+          statusEl.className = 'feedback-status error';
+        } else {
+          statusEl.textContent = 'Thanks — your feedback was saved.';
+          statusEl.className = 'feedback-status success';
+        }
+      } catch (error) {
+        statusEl.textContent = 'Network error. Make sure you\'re connected.';
+        statusEl.className = 'feedback-status error';
+      }
+    }
+
     function clearForm() {
       document.getElementById('writing-input').value = '';
       document.getElementById('results').classList.add('hidden');
       document.getElementById('writing-input').focus();
+      currentSubmissionId = null;
     }
 
     function clearFile() {
       document.getElementById('file-input').value = '';
       document.getElementById('results').classList.add('hidden');
+      currentSubmissionId = null;
     }
   </script>
 </body>
