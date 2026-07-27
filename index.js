@@ -97,7 +97,7 @@ app.post('/analyze', async (req, res) => {
     }
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-1',
+      model: 'claude-sonnet-5',
       max_tokens: 1500,
       system: systemPrompt,
       messages: [
@@ -112,7 +112,11 @@ app.post('/analyze', async (req, res) => {
       ? message.content[0].text
       : '';
 
-    const analysis = JSON.parse(responseText);
+    let clean = responseText.trim();
+    if (clean.startsWith('```')) {
+      clean = clean.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    }
+    const analysis = JSON.parse(clean);
     res.json(analysis);
 
   } catch (error) {
@@ -142,7 +146,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-1',
+      model: 'claude-sonnet-5',
       max_tokens: 1500,
       system: systemPrompt,
       messages: [
@@ -157,7 +161,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       ? message.content[0].text
       : '';
 
-    const analysis = JSON.parse(responseText);
+    let clean = responseText.trim();
+    if (clean.startsWith('```')) {
+      clean = clean.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    }
+    const analysis = JSON.parse(clean);
     res.json(analysis);
 
   } catch (error) {
