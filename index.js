@@ -205,11 +205,12 @@ async function claimTeacherIfNeeded(institution, teacherName, email) {
   }
 }
 
-async function saveSubmission({ text, institution, year, teacherName, analysis, teacherEmail }) {
+async function saveSubmission({ text, institution, teacherName, analysis, teacherEmail }) {
   if (!supabase) return null;
-  if (!institution || !year || !teacherName) return null;
+  if (!institution || !teacherName) return null;
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  const year = String(now.getFullYear());
 
   const { data: submission, error: submissionError } = await supabase
     .from('submissions')
@@ -219,7 +220,7 @@ async function saveSubmission({ text, institution, year, teacherName, analysis, 
       year,
       teacher_name: teacherName,
       teacher_email: teacherEmail || null,
-      timestamp: now,
+      timestamp: now.toISOString(),
     })
     .select()
     .single();
@@ -372,7 +373,7 @@ async function extractTextFromFile(file) {
 
 app.post('/analyze', async (req, res) => {
   try {
-    const { text, institution, year, teacherName } = req.body;
+    const { text, institution, teacherName } = req.body;
 
     if (!text || text.trim().length < 50) {
       return res.json({
@@ -383,10 +384,10 @@ app.post('/analyze', async (req, res) => {
     const analysis = await getAnalysisFromClaude(text);
 
     const teacherEmail = await getAuthedEmail(req);
-    const submission = await saveSubmission({ text, institution, year, teacherName, analysis, teacherEmail });
+    const submission = await saveSubmission({ text, institution, teacherName, analysis, teacherEmail });
     if (submission) {
       analysis.submissionId = submission.id;
-      analysis.classCode = buildClassCode(institution, year, teacherName);
+      analysis.classCode = buildClassCode(institution, submission.year, teacherName);
     }
 
     res.json(analysis);
@@ -405,7 +406,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return res.json({ error: 'No file uploaded' });
     }
 
-    const { institution, year, teacherName } = req.body;
+    const { institution, teacherName } = req.body;
 
     const text = await extractTextFromFile(req.file);
 
@@ -422,10 +423,10 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     const analysis = await getAnalysisFromClaude(text);
 
     const teacherEmail = await getAuthedEmail(req);
-    const submission = await saveSubmission({ text, institution, year, teacherName, analysis, teacherEmail });
+    const submission = await saveSubmission({ text, institution, teacherName, analysis, teacherEmail });
     if (submission) {
       analysis.submissionId = submission.id;
-      analysis.classCode = buildClassCode(institution, year, teacherName);
+      analysis.classCode = buildClassCode(institution, submission.year, teacherName);
     }
 
     res.json(analysis);
@@ -446,14 +447,10 @@ app.post('/feedback', async (req, res) => {
 
     const { submissionId, accurate, useful, comments, suggestions } = req.body;
 
-    if (!submissionId) {
-      return res.json({ error: 'Missing submissionId' });
-    }
-
     const { error } = await supabase
       .from('feedback')
       .insert({
-        submission_id: submissionId,
+        submission_id: submissionId || null,
         accurate: accurate === null || accurate === undefined ? null : Boolean(accurate),
         useful: useful === null || useful === undefined ? null : Boolean(useful),
         comments: comments || null,

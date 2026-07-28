@@ -27,15 +27,20 @@ create table if not exists analyses (
 
 create index if not exists analyses_submission_id_idx on analyses (submission_id);
 
+-- submission_id is nullable: feedback can be left even when no submission was
+-- saved (e.g. institution/teacher name weren't filled in, or the essay was
+-- just being tried out).
 create table if not exists feedback (
   id uuid primary key default gen_random_uuid(),
-  submission_id uuid not null references submissions (id) on delete cascade,
+  submission_id uuid references submissions (id) on delete cascade,
   accurate boolean,
   useful boolean,
   comments text,
   suggestions text,
   created_at timestamptz not null default now()
 );
+
+alter table feedback alter column submission_id drop not null;
 
 create index if not exists feedback_submission_id_idx on feedback (submission_id);
 

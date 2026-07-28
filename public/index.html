@@ -431,7 +431,7 @@
 
     .submission-meta {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 15px;
       margin-bottom: 15px;
     }
@@ -566,10 +566,6 @@
         <div class="meta-field">
           <label for="institution-input">Institution</label>
           <input type="text" id="institution-input" placeholder="e.g. Harvard" oninput="updateClassCode()">
-        </div>
-        <div class="meta-field">
-          <label for="year-input">Year</label>
-          <input type="text" id="year-input" placeholder="e.g. 2024" oninput="updateClassCode()">
         </div>
         <div class="meta-field">
           <label for="teacher-input">Teacher name</label>
@@ -756,27 +752,27 @@
     function getSubmissionMeta() {
       return {
         institution: document.getElementById('institution-input').value.trim(),
-        year: document.getElementById('year-input').value.trim(),
         teacherName: document.getElementById('teacher-input').value.trim(),
       };
     }
 
     function validateSubmissionMeta() {
-      const { institution, year, teacherName } = getSubmissionMeta();
-      if (!institution || !year || !teacherName) {
-        alert('Please fill in Institution, Year, and Teacher name first — these are required to save your submission so you can leave feedback and view your dashboard later.');
+      const { institution, teacherName } = getSubmissionMeta();
+      if (!institution || !teacherName) {
+        alert('Please fill in Institution and Teacher name first — these are required to save your submission so you can view your dashboard later.');
         return false;
       }
       return true;
     }
 
     function updateClassCode() {
-      const { institution, year, teacherName } = getSubmissionMeta();
+      const { institution, teacherName } = getSubmissionMeta();
       const codeEl = document.getElementById('class-code');
 
-      if (institution && year && teacherName) {
+      if (institution && teacherName) {
+        const year = new Date().getFullYear();
         codeEl.textContent = [institution, year, teacherName]
-          .map(part => part.toUpperCase().replace(/\s+/g, '-'))
+          .map(part => String(part).toUpperCase().replace(/\s+/g, '-'))
           .join('-');
       } else {
         codeEl.textContent = '—';
@@ -845,7 +841,6 @@
 
       const meta = getSubmissionMeta();
       formData.append('institution', meta.institution);
-      formData.append('year', meta.year);
       formData.append('teacherName', meta.teacherName);
 
       document.getElementById('loading').style.display = 'block';
@@ -1030,12 +1025,6 @@
       event.preventDefault();
 
       const statusEl = document.getElementById('feedback-status');
-
-      if (!currentSubmissionId) {
-        statusEl.textContent = 'Feedback isn\'t available for this analysis. Make sure Institution, Year, and Teacher name were filled in before analyzing, and that the database is configured.';
-        statusEl.className = 'feedback-status error';
-        return;
-      }
 
       const accurateInput = document.querySelector('input[name="accurate"]:checked');
       const usefulInput = document.querySelector('input[name="useful"]:checked');
