@@ -761,6 +761,15 @@
       };
     }
 
+    function validateSubmissionMeta() {
+      const { institution, year, teacherName } = getSubmissionMeta();
+      if (!institution || !year || !teacherName) {
+        alert('Please fill in Institution, Year, and Teacher name first — these are required to save your submission so you can leave feedback and view your dashboard later.');
+        return false;
+      }
+      return true;
+    }
+
     function updateClassCode() {
       const { institution, year, teacherName } = getSubmissionMeta();
       const codeEl = document.getElementById('class-code');
@@ -823,6 +832,10 @@
         return;
       }
 
+      if (!validateSubmissionMeta()) {
+        return;
+      }
+
       uploadFile(file);
     }
 
@@ -870,6 +883,10 @@
 
       if (text.length < 50) {
         alert('Please provide at least 50 characters of writing');
+        return;
+      }
+
+      if (!validateSubmissionMeta()) {
         return;
       }
 
