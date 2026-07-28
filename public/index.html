@@ -431,7 +431,7 @@
 
     .submission-meta {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 15px;
       margin-bottom: 15px;
     }
@@ -444,16 +444,19 @@
       font-weight: 500;
     }
 
-    .meta-field input {
+    .meta-field input,
+    .meta-field select {
       width: 100%;
       padding: 10px 12px;
       font-family: 'Georgia', 'Garamond', serif;
       font-size: 14px;
       border: 1px solid #ddd;
       border-radius: 6px;
+      background: white;
     }
 
-    .meta-field input:focus {
+    .meta-field input:focus,
+    .meta-field select:focus {
       outline: none;
       border-color: #4a90e2;
       box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
@@ -571,6 +574,13 @@
           <label for="teacher-input">Teacher name</label>
           <input type="text" id="teacher-input" placeholder="e.g. Smith" oninput="updateClassCode()">
         </div>
+        <div class="meta-field">
+          <label for="writing-type-select">Writing Type</label>
+          <select id="writing-type-select" onchange="updateUIForWritingType()">
+            <option value="essay" selected>Essay</option>
+            <option value="cover_letter">Cover Letter</option>
+          </select>
+        </div>
       </div>
       <div class="class-code-display">Class code: <strong id="class-code">—</strong></div>
 
@@ -615,7 +625,7 @@
 
       <div class="results-grid">
         <div class="essay-column">
-          <div class="column-title">Original Essay</div>
+          <div class="column-title" id="essay-column-title">Original Essay</div>
           <div id="essay-display" class="essay-display"></div>
         </div>
 
@@ -753,7 +763,17 @@
       return {
         institution: document.getElementById('institution-input').value.trim(),
         teacherName: document.getElementById('teacher-input').value.trim(),
+        writingType: document.getElementById('writing-type-select').value,
       };
+    }
+
+    function updateUIForWritingType() {
+      const writingType = document.getElementById('writing-type-select').value;
+      const isCoverLetter = writingType === 'cover_letter';
+
+      document.getElementById('writing-input').placeholder = isCoverLetter
+        ? 'Paste cover letter here...'
+        : 'Paste student writing here...';
     }
 
     function validateSubmissionMeta() {
@@ -842,6 +862,7 @@
       const meta = getSubmissionMeta();
       formData.append('institution', meta.institution);
       formData.append('teacherName', meta.teacherName);
+      formData.append('writingType', meta.writingType);
 
       document.getElementById('loading').style.display = 'block';
       document.getElementById('results').classList.add('hidden');
@@ -987,6 +1008,10 @@
       currentSubmissionId = data.submissionId || null;
       resetFeedbackForm();
 
+      const isCoverLetter = data.writingType === 'cover_letter';
+      document.getElementById('essay-column-title').textContent = isCoverLetter ? 'Original Letter' : 'Original Essay';
+      const likelyCauseLabel = isCoverLetter ? 'What the applicant might have been thinking' : 'What the student might be thinking';
+
       document.getElementById('summary').textContent = data.summary || '';
 
       renderEssay(data.patterns);
@@ -1003,7 +1028,7 @@
             <div class="pattern-excerpt">"${pattern.excerpt}"</div>
             <div class="pattern-label">Why this is a problem</div>
             <div class="pattern-text">${pattern.why_its_a_problem}</div>
-            <div class="pattern-label">What the student might be thinking</div>
+            <div class="pattern-label">${likelyCauseLabel}</div>
             <div class="pattern-text">${pattern.likely_cause}</div>
           `;
           patternsContainer.appendChild(patternEl);

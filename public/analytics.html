@@ -115,12 +115,18 @@
 
     .lookup-fields {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 15px;
       margin-bottom: 20px;
     }
 
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
+      .lookup-fields {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 420px) {
       .lookup-fields {
         grid-template-columns: 1fr;
       }
@@ -134,13 +140,15 @@
       font-weight: 500;
     }
 
-    .field input {
+    .field input,
+    .field select {
       width: 100%;
       padding: 10px 12px;
       font-family: 'Georgia', 'Garamond', serif;
       font-size: 14px;
       border: 1px solid #ddd;
       border-radius: 6px;
+      background: white;
     }
 
     .field input:focus {
@@ -294,6 +302,13 @@
 
     <div class="card">
       <div class="lookup-fields">
+        <div class="field">
+          <label for="writing-type-input">Writing Type</label>
+          <select id="writing-type-input">
+            <option value="essay" selected>Essay</option>
+            <option value="cover_letter">Cover Letter</option>
+          </select>
+        </div>
         <div class="field">
           <label for="institution-input">Institution</label>
           <input type="text" id="institution-input" placeholder="e.g. Harvard">
@@ -453,6 +468,7 @@
       const institution = document.getElementById('institution-input').value.trim();
       const year = document.getElementById('year-input').value.trim();
       const teacherName = document.getElementById('teacher-input').value.trim();
+      const writingType = document.getElementById('writing-type-input').value;
 
       const errorEl = document.getElementById('lookup-error');
       errorEl.innerHTML = '';
@@ -467,7 +483,7 @@
         return;
       }
 
-      const params = new URLSearchParams({ institution });
+      const params = new URLSearchParams({ institution, writingType });
       if (year) params.set('year', year);
       if (teacherName) params.set('teacherName', teacherName);
 
@@ -489,10 +505,12 @@
 
       document.getElementById('results').classList.remove('hidden');
 
+      const typeLabel = data.writingType === 'cover_letter' ? 'cover letter' : 'essay';
+
       const institutionSection = document.getElementById('institution-section');
       institutionSection.innerHTML = `
         <div class="level-title">${data.institution.name}</div>
-        <div class="level-description">Across all submissions from ${data.institution.name} (all years, all teachers) — ${data.institution.totalSubmissions} submission(s)</div>
+        <div class="level-description">Across all ${typeLabel} submissions from ${data.institution.name} (all years, all teachers) — ${data.institution.totalSubmissions} submission(s)</div>
         ${renderTable(data.institution.table)}
       `;
 
@@ -501,7 +519,7 @@
         yearSection.classList.remove('hidden');
         yearSection.innerHTML = `
           <div class="level-title">${data.year.institution} ${data.year.year}</div>
-          <div class="level-description">${data.year.institution} submissions from ${data.year.year} — ${data.year.totalSubmissions} submission(s)</div>
+          <div class="level-description">${data.year.institution} ${typeLabel} submissions from ${data.year.year} — ${data.year.totalSubmissions} submission(s)</div>
           ${renderTable(data.year.table)}
         `;
       } else {

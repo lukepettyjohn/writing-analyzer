@@ -43,8 +43,14 @@ function buildClassCode(institution, year, teacherName) {
     .join('-');
 }
 
+const TITLE_CASE_MINOR_WORDS = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'nor', 'for', 'so', 'yet', 'to', 'of', 'in', 'on', 'at', 'by', 'as']);
+
 function toTitleCase(str) {
-  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map((word, i) => (i > 0 && TITLE_CASE_MINOR_WORDS.has(word) ? word : word.replace(/\b\w/g, c => c.toUpperCase())))
+    .join(' ');
 }
 
 function normalizePatternKey(name) {
@@ -205,7 +211,7 @@ async function claimTeacherIfNeeded(institution, teacherName, email) {
   }
 }
 
-async function saveSubmission({ text, institution, teacherName, analysis, teacherEmail }) {
+async function saveSubmission({ text, institution, teacherName, analysis, teacherEmail, writingType }) {
   if (!supabase) return null;
   if (!institution || !teacherName) return null;
 
@@ -220,6 +226,7 @@ async function saveSubmission({ text, institution, teacherName, analysis, teache
       year,
       teacher_name: teacherName,
       teacher_email: teacherEmail || null,
+      writing_type: writingType === 'cover_letter' ? 'cover_letter' : 'essay',
       timestamp: now.toISOString(),
     })
     .select()
@@ -249,7 +256,7 @@ async function saveSubmission({ text, institution, teacherName, analysis, teache
   return submission;
 }
 
-const systemPrompt = `You are an expert writing teacher analyzing student reasoning patterns.
+const essaySystemPrompt = `You are an expert writing teacher analyzing student reasoning patterns.
 
 Analyze the following student writing for reasoning issues.
 
@@ -307,9 +314,65 @@ Output ONLY valid JSON, no other text. Format:
   "summary": "1-2 sentence summary of main reasoning issues"
 }`;
 
-async function getAnalysisFromClaude(text) {
+const coverLetterSystemPrompt = `You are an expert career advisor analyzing cover letters for job applications.
+
+Analyze the following cover letter for structural and persuasive issues.
+
+Look for these patterns:
+
+Missing Position Statement: The opening paragraph doesn't clearly state which specific job the applicant is applying for and at which organization.
+- Example: "I am writing to express my interest in this exciting opportunity" without naming the role or company
+- Problem: A hiring manager shouldn't have to guess what position this letter is for, especially since cover letters are often reviewed separately from the rest of an application
+
+Missing Argument Preview: The first paragraph doesn't end with a sentence outlining the case for why the applicant should be hired.
+- Example: The opening states the role applied for but jumps straight into a specific story without framing what's coming
+- Problem: Without a preview sentence, the reader has no roadmap for evaluating the rest of the letter and the argument feels less deliberately constructed
+
+Unconnected Qualifications: A body paragraph lists skills, experience, or values without explicitly tying them to why they matter for this specific job or organization.
+- Example: "I have five years of project management experience" with no explanation of why that matters for this particular role
+- Problem: This makes the employer do the work of connecting the dots — the applicant should draw the connection explicitly
+
+Missing Business Letter Format: The letter is missing standard business letter elements — a dateline, a formal salutation addressed to a specific person or "Hiring Manager," and/or a formal closing with a signature line.
+- Example: The letter opens directly with "I am interested in..." with no date or salutation, or ends abruptly with no closing like "Sincerely,"
+- Problem: A cover letter is formal business correspondence; omitting these elements reads as unprofessional or incomplete
+
+Exceeds Recommended Length: The letter is meaningfully longer than the standard one-page guideline (roughly 300-400 words). The user message will state the actual word count — use that instead of estimating.
+- Example: A six-paragraph letter that restates the resume in detail
+- Problem: Hiring managers typically expect a cover letter to fit on one page; excessive length risks not being read in full
+
+For EACH pattern you find:
+1. Pattern name — must be EXACTLY one of the five names above, copied verbatim (same spelling and capitalization). Do not paraphrase or reformat it.
+2. The exact quote/excerpt from the text (for "Exceeds Recommended Length," quote the final sentence or a representative redundant passage; for "Missing Business Letter Format," quote whatever opening or closing text is present)
+3. Why this is a problem
+4. What the applicant might have been thinking (be kind — diagnose, don't judge)
+
+Output ONLY valid JSON, no other text. Format:
+
+{
+  "patterns": [
+    {
+      "name": "Pattern Name",
+      "excerpt": "exact text from letter",
+      "why_its_a_problem": "explanation",
+      "likely_cause": "what the applicant might have been thinking"
+    }
+  ],
+  "summary": "1-2 sentence summary of main issues"
+}`;
+
+function buildUserMessage(text, writingType) {
+  if (writingType === 'cover_letter') {
+    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+    return `This cover letter is approximately ${wordCount} words (a standard one-page cover letter is typically 300-400 words). Analyze this cover letter:\n\n${text}`;
+  }
+  return `Analyze this student writing:\n\n${text}`;
+}
+
+async function getAnalysisFromClaude(text, writingType) {
   const maxAttempts = 2;
   let lastError;
+  const systemPrompt = writingType === 'cover_letter' ? coverLetterSystemPrompt : essaySystemPrompt;
+  const userContent = buildUserMessage(text, writingType);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const message = await client.messages.create({
@@ -319,7 +382,7 @@ async function getAnalysisFromClaude(text) {
       messages: [
         {
           role: 'user',
-          content: `Analyze this student writing:\n\n${text}`
+          content: userContent
         }
       ],
     });
@@ -373,7 +436,8 @@ async function extractTextFromFile(file) {
 
 app.post('/analyze', async (req, res) => {
   try {
-    const { text, institution, teacherName } = req.body;
+    const { text, institution, teacherName, writingType } = req.body;
+    const normalizedType = writingType === 'cover_letter' ? 'cover_letter' : 'essay';
 
     if (!text || text.trim().length < 50) {
       return res.json({
@@ -381,10 +445,11 @@ app.post('/analyze', async (req, res) => {
       });
     }
 
-    const analysis = await getAnalysisFromClaude(text);
+    const analysis = await getAnalysisFromClaude(text, normalizedType);
+    analysis.writingType = normalizedType;
 
     const teacherEmail = await getAuthedEmail(req);
-    const submission = await saveSubmission({ text, institution, teacherName, analysis, teacherEmail });
+    const submission = await saveSubmission({ text, institution, teacherName, analysis, teacherEmail, writingType: normalizedType });
     if (submission) {
       analysis.submissionId = submission.id;
       analysis.classCode = buildClassCode(institution, submission.year, teacherName);
@@ -406,7 +471,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return res.json({ error: 'No file uploaded' });
     }
 
-    const { institution, teacherName } = req.body;
+    const { institution, teacherName, writingType } = req.body;
+    const normalizedType = writingType === 'cover_letter' ? 'cover_letter' : 'essay';
 
     const text = await extractTextFromFile(req.file);
 
@@ -420,10 +486,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       });
     }
 
-    const analysis = await getAnalysisFromClaude(text);
+    const analysis = await getAnalysisFromClaude(text, normalizedType);
+    analysis.writingType = normalizedType;
 
     const teacherEmail = await getAuthedEmail(req);
-    const submission = await saveSubmission({ text, institution, teacherName, analysis, teacherEmail });
+    const submission = await saveSubmission({ text, institution, teacherName, analysis, teacherEmail, writingType: normalizedType });
     if (submission) {
       analysis.submissionId = submission.id;
       analysis.classCode = buildClassCode(institution, submission.year, teacherName);
@@ -475,6 +542,7 @@ app.get('/analytics', async (req, res) => {
     const institution = (req.query.institution || '').trim();
     const year = (req.query.year || '').trim();
     const teacherName = (req.query.teacherName || '').trim();
+    const writingType = req.query.writingType === 'cover_letter' ? 'cover_letter' : 'essay';
 
     if (!institution) {
       return res.json({ error: 'Institution is required.' });
@@ -483,7 +551,8 @@ app.get('/analytics', async (req, res) => {
     const { data, error } = await supabase
       .from('submissions')
       .select('id, institution, year, teacher_name, created_at, analyses(patterns, summary)')
-      .ilike('institution', institution);
+      .ilike('institution', institution)
+      .eq('writing_type', writingType);
 
     if (error) throw error;
 
@@ -496,6 +565,7 @@ app.get('/analytics', async (req, res) => {
       : [];
 
     const response = {
+      writingType,
       institution: { name: institution, ...aggregatePatterns(institutionRows) },
     };
 

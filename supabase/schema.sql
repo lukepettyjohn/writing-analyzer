@@ -8,15 +8,18 @@ create table if not exists submissions (
   year text not null,
   teacher_name text not null,
   teacher_email text,
+  writing_type text not null default 'essay',
   timestamp timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
 alter table submissions add column if not exists teacher_email text;
+alter table submissions add column if not exists writing_type text not null default 'essay';
 
 create index if not exists submissions_institution_idx on submissions (institution);
 create index if not exists submissions_institution_year_idx on submissions (institution, year);
 create index if not exists submissions_institution_year_teacher_idx on submissions (institution, year, teacher_name);
+create index if not exists submissions_institution_type_idx on submissions (institution, writing_type);
 
 create table if not exists analyses (
   id uuid primary key default gen_random_uuid(),
